@@ -1,6 +1,6 @@
 -- ====================================================================
--- SCRIPT: @wed_vk (BLOXSTRIKE EDITION) — PC & MOBILE ANTI-CRASH
--- Оптимизировано под ПК (Solara, Celery, Wave) и Android (Delta, Codex)
+-- SCRIPT: @wed_vk (BLOXSTRIKE EDITION) — PRO PC & MOBILE AIMBOT
+-- Поддержка mousemoverel (ПК), зажатия ПКМ, Box ESP и вотермарка
 -- ====================================================================
 
 local Players = game:GetService("Players")
@@ -14,16 +14,18 @@ local Camera = Workspace.CurrentCamera
 -- НАСТРОЙКИ
 local Settings = {
     Aimbot = false,
-    AimbotFOV = 45,           -- Базовый FOV
-    AimSmoothness = 0.20,     -- Плавность (0.05 - легит, 1.0 - снап)
+    AimbotFOV = 75,           -- Оптимальный базовый FOV для ПК
+    AimSmoothness = 0.25,     -- Плавность (0.05 - легит, 1.0 - моментально)
+    AimOnRMB = true,          -- Работать только при зажатой ПКМ (для ПК)
+    WallCheck = false,        -- Отключено по умолчанию для стабильности
     TeamCheck = true,
-    WallCheck = true,
-    ESP = false               -- 2D Box ESP
+    ESP = false
 }
 
 local ScreenBoxes = {}
+local isRMBPressed = false
 
--- Единый кэшированный RaycastParams (предотвращает переполнение памяти и краш)
+-- Единый кэшированный RaycastParams
 local WallCheckParams = RaycastParams.new()
 WallCheckParams.FilterType = Enum.RaycastFilterType.Blacklist
 WallCheckParams.IgnoreWater = true
@@ -41,7 +43,7 @@ local function isEnemy(player)
     return true
 end
 
--- Безопасная проверка препятствий
+-- Проверка препятствий
 local function isVisible(targetPart)
     if not Settings.WallCheck then return true end
     if not targetPart or not targetPart.Parent then return false end
@@ -58,14 +60,27 @@ local function isVisible(targetPart)
     return true
 end
 
+-- Отслеживание зажатия ПКМ на клавиатуре/мыши
+UserInputService.InputBegan:Connect(function(input, processed)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        isRMBPressed = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        isRMBPressed = false
+    end
+end)
+
 -- --------------------------------------------------------------------
--- БЕЗОПАСНЫЙ ИНТЕРФЕЙС (СТРОГО В PLAYERGUI ВО ИЗБЕЖАНИЕ КРАША)
+-- ИНТЕРФЕЙС И ВОТЕРМАРК
 -- --------------------------------------------------------------------
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WedVk_Bloxstrike_Safe"
+ScreenGui.Name = "WedVk_Bloxstrike_Pro"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.IgnoreGuiInset = true -- Ровная привязка боксов без сдвига
+ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 if PlayerGui then
@@ -145,8 +160,8 @@ TBStroke.Parent = ToggleBtn
 
 -- ГЛАВНОЕ ОКНО
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 230, 0, 310)
-MainFrame.Position = UDim2.new(0.5, -115, 0.5, -155)
+MainFrame.Size = UDim2.new(0, 235, 0, 330)
+MainFrame.Position = UDim2.new(0.5, -117, 0.5, -165)
 MainFrame.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
 MainFrame.Visible = false
 MainFrame.Active = true
@@ -164,7 +179,7 @@ MFStroke.Parent = MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 38)
 Title.BackgroundTransparency = 1
-Title.Text = "@wed_vk [PC/Mobile]"
+Title.Text = "@wed_vk [Pro Edition]"
 Title.TextColor3 = Color3.fromRGB(255, 65, 65)
 Title.TextSize = 14
 Title.Font = Enum.Font.GothamBold
@@ -175,14 +190,14 @@ Scroll.Size = UDim2.new(1, -16, 1, -46)
 Scroll.Position = UDim2.new(0, 8, 0, 40)
 Scroll.BackgroundTransparency = 1
 Scroll.ScrollBarThickness = 2
-Scroll.CanvasSize = UDim2.new(0, 0, 0, 260)
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 320)
 Scroll.Parent = MainFrame
 
 local Layout = Instance.new("UIListLayout")
 Layout.Padding = UDim.new(0, 6)
 Layout.Parent = Scroll
 
--- Перемещение меню
+-- Перетаскивание окна
 local function makeDraggable(gui)
     local dragging, dragStart, startPos
     gui.InputBegan:Connect(function(inp)
@@ -206,7 +221,6 @@ end
 makeDraggable(ToggleBtn)
 makeDraggable(MainFrame)
 
--- Открытие/закрытие по клику мыши / тапу
 ToggleBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
 end)
@@ -222,11 +236,11 @@ end)
 
 local function createToggle(name, defaultState, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.Size = UDim2.new(1, 0, 0, 34)
     btn.BackgroundColor3 = defaultState and Color3.fromRGB(190, 35, 35) or Color3.fromRGB(28, 28, 34)
     btn.Text = name .. ": " .. (defaultState and "ВКЛ" or "ВЫКЛ")
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 13
+    btn.TextSize = 12
     btn.Font = Enum.Font.GothamBold
     btn.Parent = Scroll
 
@@ -245,7 +259,7 @@ end
 
 local function createAdjuster(title, getValueText, onMinus, onPlus)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 38)
+    frame.Size = UDim2.new(1, 0, 0, 34)
     frame.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
     frame.Parent = Scroll
 
@@ -254,8 +268,8 @@ local function createAdjuster(title, getValueText, onMinus, onPlus)
     corner.Parent = frame
 
     local minusBtn = Instance.new("TextButton")
-    minusBtn.Size = UDim2.new(0, 32, 1, -8)
-    minusBtn.Position = UDim2.new(0, 4, 0, 4)
+    minusBtn.Size = UDim2.new(0, 30, 1, -6)
+    minusBtn.Position = UDim2.new(0, 3, 0, 3)
     minusBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 46)
     minusBtn.Text = "-"
     minusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -268,8 +282,8 @@ local function createAdjuster(title, getValueText, onMinus, onPlus)
     mCorner.Parent = minusBtn
 
     local plusBtn = Instance.new("TextButton")
-    plusBtn.Size = UDim2.new(0, 32, 1, -8)
-    plusBtn.Position = UDim2.new(1, -36, 0, 4)
+    plusBtn.Size = UDim2.new(0, 30, 1, -6)
+    plusBtn.Position = UDim2.new(1, -33, 0, 3)
     plusBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 46)
     plusBtn.Text = "+"
     plusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -282,12 +296,12 @@ local function createAdjuster(title, getValueText, onMinus, onPlus)
     pCorner.Parent = plusBtn
 
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -76, 1, 0)
-    label.Position = UDim2.new(0, 38, 0, 0)
+    label.Size = UDim2.new(1, -70, 1, 0)
+    label.Position = UDim2.new(0, 35, 0, 0)
     label.BackgroundTransparency = 1
     label.Text = title .. ": " .. getValueText()
     label.TextColor3 = Color3.fromRGB(240, 240, 240)
-    label.TextSize = 12
+    label.TextSize = 11
     label.Font = Enum.Font.GothamSemibold
     label.Parent = frame
 
@@ -302,7 +316,41 @@ local function createAdjuster(title, getValueText, onMinus, onPlus)
 end
 
 -- --------------------------------------------------------------------
--- СОЗДАНИЕ И ОБНОВЛЕНИЕ 2D BOX ESP
+-- КНОПКИ УПРАВЛЕНИЯ
+-- --------------------------------------------------------------------
+createToggle("Аимбот", Settings.Aimbot, function(v)
+    Settings.Aimbot = v
+    FOVCircle.Visible = v
+end)
+
+createToggle("Только при зажатой ПКМ", Settings.AimOnRMB, function(v)
+    Settings.AimOnRMB = v
+end)
+
+createToggle("Проверка стен (WallCheck)", Settings.WallCheck, function(v)
+    Settings.WallCheck = v
+end)
+
+createAdjuster("FOV", function()
+    return tostring(Settings.AimbotFOV)
+end, function()
+    Settings.AimbotFOV = math.max(25, Settings.AimbotFOV - 10)
+    FOVCircle.Size = UDim2.new(0, Settings.AimbotFOV * 2, 0, Settings.AimbotFOV * 2)
+end, function()
+    Settings.AimbotFOV = math.min(250, Settings.AimbotFOV + 10)
+    FOVCircle.Size = UDim2.new(0, Settings.AimbotFOV * 2, 0, Settings.AimbotFOV * 2)
+end)
+
+createAdjuster("Плавность", function()
+    return string.format("%.2f", Settings.AimSmoothness)
+end, function()
+    Settings.AimSmoothness = math.clamp(Settings.AimSmoothness - 0.05, 0.05, 1.0)
+end, function()
+    Settings.AimSmoothness = math.clamp(Settings.AimSmoothness + 0.05, 0.05, 1.0)
+end)
+
+-- --------------------------------------------------------------------
+-- 2D BOX ESP
 -- --------------------------------------------------------------------
 local function getOrCreateScreenBox(player)
     if ScreenBoxes[player] then return ScreenBoxes[player] end
@@ -332,11 +380,7 @@ local function getOrCreateScreenBox(player)
     tag.Text = player.DisplayName
     tag.Parent = boxFrame
 
-    ScreenBoxes[player] = {
-        Frame = boxFrame,
-        Stroke = stroke,
-        Tag = tag
-    }
+    ScreenBoxes[player] = {Frame = boxFrame, Stroke = stroke, Tag = tag}
     return ScreenBoxes[player]
 end
 
@@ -359,35 +403,13 @@ end)
 Players.PlayerRemoving:Connect(removeScreenBox)
 
 -- --------------------------------------------------------------------
--- ПЛАВНЫЙ АИМБОТ
+-- АИМБОТ ДЛЯ BLOXSTRIKE (С ПОДДЕРЖКОЙ MOUSEMOVEREL)
 -- --------------------------------------------------------------------
-createToggle("Плавный Аимбот", Settings.Aimbot, function(v)
-    Settings.Aimbot = v
-    FOVCircle.Visible = v
-end)
-
-createAdjuster("FOV", function()
-    return tostring(Settings.AimbotFOV)
-end, function()
-    Settings.AimbotFOV = math.max(15, Settings.AimbotFOV - 5)
-    FOVCircle.Size = UDim2.new(0, Settings.AimbotFOV * 2, 0, Settings.AimbotFOV * 2)
-end, function()
-    Settings.AimbotFOV = math.min(180, Settings.AimbotFOV + 5)
-    FOVCircle.Size = UDim2.new(0, Settings.AimbotFOV * 2, 0, Settings.AimbotFOV * 2)
-end)
-
-createAdjuster("Плавность", function()
-    return string.format("%.2f", Settings.AimSmoothness)
-end, function()
-    Settings.AimSmoothness = math.clamp(Settings.AimSmoothness - 0.05, 0.05, 1.0)
-end, function()
-    Settings.AimSmoothness = math.clamp(Settings.AimSmoothness + 0.05, 0.05, 1.0)
-end)
-
 local function getBestTarget()
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local bestPart = nil
     local minDistance = Settings.AimbotFOV
+    local bestScreenPos = nil
 
     for _, p in ipairs(Players:GetPlayers()) do
         if isEnemy(p) and p.Character then
@@ -396,34 +418,52 @@ local function getBestTarget()
             if head and hum and hum.Health > 0 then
                 local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
                 if onScreen then
-                    local dist = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                    local screenVec = Vector2.new(sp.X, sp.Y)
+                    local dist = (screenVec - center).Magnitude
                     if dist < minDistance then
                         if isVisible(head) then
                             minDistance = dist
                             bestPart = head
+                            bestScreenPos = screenVec
                         end
                     end
                 end
             end
         end
     end
-    return bestPart
+    return bestPart, bestScreenPos
 end
 
--- --------------------------------------------------------------------
--- ОСНОВНОЙ ЦИКЛ ОБНОВЛЕНИЯ (БЕЗ УТЕЧЕК ПАМЯТИ)
--- --------------------------------------------------------------------
+-- Основной цикл работы
 RunService.RenderStepped:Connect(function()
-    -- 1. Аимбот
+    -- 1. ЛОГИКА АИМБОТА
     if Settings.Aimbot then
-        local target = getBestTarget()
-        if target then
-            local targetCFrame = CFrame.lookAt(Camera.CFrame.Position, target.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Settings.AimSmoothness)
+        -- Проверка: зажата ли ПКМ (если включена опция)
+        local canAim = true
+        if Settings.AimOnRMB and not isRMBPressed then
+            canAim = false
+        end
+
+        if canAim then
+            local targetPart, screenPos = getBestTarget()
+            if targetPart and screenPos then
+                local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                local deltaX = (screenPos.X - center.X) * Settings.AimSmoothness
+                local deltaY = (screenPos.Y - center.Y) * Settings.AimSmoothness
+
+                -- Метод 1: mousemoverel для ПК (работает в обход камеры Bloxstrike)
+                if mousemoverel then
+                    mousemoverel(deltaX, deltaY)
+                else
+                    -- Метод 2: CFrame Lerp (для сенсора и инжекторов без mousemoverel)
+                    local targetCFrame = CFrame.lookAt(Camera.CFrame.Position, targetPart.Position)
+                    Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, Settings.AimSmoothness)
+                end
+            end
         end
     end
 
-    -- 2. Box ESP
+    -- 2. ЛОГИКА 2D BOX ESP
     if Settings.ESP then
         local myChar = LocalPlayer.Character
         local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChild("Torso"))
@@ -476,4 +516,4 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-print("[@wed_vk] Bloxstrike (PC/Mobile Anti-Crash) готов к работе!")
+print("[@wed_vk] Bloxstrike Pro запущен!")
