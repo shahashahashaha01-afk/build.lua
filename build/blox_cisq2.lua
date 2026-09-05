@@ -1,11 +1,12 @@
 -- ====================================================================
--- SCRIPT: @wed_vk (BLOXSTRIKE EDITION) — HITBOX FIX
--- Исправлена привязка Box ESP (Пиксель в пиксель по хитбоксу)
+-- SCRIPT: @wed_vk (BLOXSTRIKE EDITION) — PC & MOBILE ANTI-CRASH
+-- Оптимизировано под ПК (Solara, Celery, Wave) и Android (Delta, Codex)
 -- ====================================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -14,13 +15,18 @@ local Camera = Workspace.CurrentCamera
 local Settings = {
     Aimbot = false,
     AimbotFOV = 45,           -- Базовый FOV
-    AimSmoothness = 0.20,     -- Плавность (чем меньше, тем мягче)
+    AimSmoothness = 0.20,     -- Плавность (0.05 - легит, 1.0 - снап)
     TeamCheck = true,
     WallCheck = true,
     ESP = false               -- 2D Box ESP
 }
 
 local ScreenBoxes = {}
+
+-- Единый кэшированный RaycastParams (предотвращает переполнение памяти и краш)
+local WallCheckParams = RaycastParams.new()
+WallCheckParams.FilterType = Enum.RaycastFilterType.Blacklist
+WallCheckParams.IgnoreWater = true
 
 -- Проверка команд
 local function isEnemy(player)
@@ -35,7 +41,7 @@ local function isEnemy(player)
     return true
 end
 
--- Проверка препятствий (Wall Check)
+-- Безопасная проверка препятствий
 local function isVisible(targetPart)
     if not Settings.WallCheck then return true end
     if not targetPart or not targetPart.Parent then return false end
@@ -43,12 +49,9 @@ local function isVisible(targetPart)
     local origin = Camera.CFrame.Position
     local dir = targetPart.Position - origin
 
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Blacklist
-    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
-    params.IgnoreWater = true
+    WallCheckParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
 
-    local hit = Workspace:Raycast(origin, dir, params)
+    local hit = Workspace:Raycast(origin, dir, WallCheckParams)
     if hit and hit.Instance then
         return hit.Instance:IsDescendantOf(targetPart.Parent)
     end
@@ -56,35 +59,26 @@ local function isVisible(targetPart)
 end
 
 -- --------------------------------------------------------------------
--- ИНТЕРФЕЙС И ВОТЕРМАРК
+-- БЕЗОПАСНЫЙ ИНТЕРФЕЙС (СТРОГО В PLAYERGUI ВО ИЗБЕЖАНИЕ КРАША)
 -- --------------------------------------------------------------------
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WedVk_Bloxstrike"
+ScreenGui.Name = "WedVk_Bloxstrike_Safe"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true -- Ровная привязка боксов без сдвига
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- КЛЮЧЕВОЙ ФИКС: Убирает сдвиг верхнего бара Roblox (36px вниз)
-ScreenGui.IgnoreGuiInset = true
-
-pcall(function()
-    if gethui then
-        ScreenGui.Parent = gethui()
-    elseif syn and syn.protect_gui then
-        syn.protect_gui(ScreenGui)
-        ScreenGui.Parent = game:GetService("CoreGui")
-    else
-        ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    end
-end)
-if not ScreenGui.Parent then
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+if PlayerGui then
+    ScreenGui.Parent = PlayerGui
+else
+    ScreenGui.Parent = LocalPlayer:FindFirstChildOfClass("PlayerGui")
 end
 
 local ESPContainer = Instance.new("Folder")
 ESPContainer.Name = "ESPContainer"
 ESPContainer.Parent = ScreenGui
 
--- ВОТЕРМАРК В СЕРЕДИНЕ СНИЗУ ЭКРАНА
+-- ВОТЕРМАРК СНИЗУ ЭКРАНА
 local Watermark = Instance.new("Frame")
 Watermark.Name = "Watermark"
 Watermark.AnchorPoint = Vector2.new(0.5, 1)
@@ -170,9 +164,9 @@ MFStroke.Parent = MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 38)
 Title.BackgroundTransparency = 1
-Title.Text = "@wed_vk"
+Title.Text = "@wed_vk [PC/Mobile]"
 Title.TextColor3 = Color3.fromRGB(255, 65, 65)
-Title.TextSize = 15
+Title.TextSize = 14
 Title.Font = Enum.Font.GothamBold
 Title.Parent = MainFrame
 
@@ -188,8 +182,8 @@ local Layout = Instance.new("UIListLayout")
 Layout.Padding = UDim.new(0, 6)
 Layout.Parent = Scroll
 
--- Перемещение меню пальцем
-local function makeTouchDrag(gui)
+-- Перемещение меню
+local function makeDraggable(gui)
     local dragging, dragStart, startPos
     gui.InputBegan:Connect(function(inp)
         if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -209,11 +203,21 @@ local function makeTouchDrag(gui)
     end)
 end
 
-makeTouchDrag(ToggleBtn)
-makeTouchDrag(MainFrame)
+makeDraggable(ToggleBtn)
+makeDraggable(MainFrame)
 
+-- Открытие/закрытие по клику мыши / тапу
 ToggleBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- Горячая клавиша для ПК: Insert или RightShift
+UserInputService.InputBegan:Connect(function(input, processed)
+    if not processed then
+        if input.KeyCode == Enum.KeyCode.Insert or input.KeyCode == Enum.KeyCode.RightShift then
+            MainFrame.Visible = not MainFrame.Visible
+        end
+    end
 end)
 
 local function createToggle(name, defaultState, callback)
@@ -298,7 +302,7 @@ local function createAdjuster(title, getValueText, onMinus, onPlus)
 end
 
 -- --------------------------------------------------------------------
--- СОЗДАНИЕ 2D BOX ESP
+-- СОЗДАНИЕ И ОБНОВЛЕНИЕ 2D BOX ESP
 -- --------------------------------------------------------------------
 local function getOrCreateScreenBox(player)
     if ScreenBoxes[player] then return ScreenBoxes[player] end
@@ -355,7 +359,7 @@ end)
 Players.PlayerRemoving:Connect(removeScreenBox)
 
 -- --------------------------------------------------------------------
--- ФУНКЦИОНАЛ: ПЛАВНЫЙ АИМБОТ
+-- ПЛАВНЫЙ АИМБОТ
 -- --------------------------------------------------------------------
 createToggle("Плавный Аимбот", Settings.Aimbot, function(v)
     Settings.Aimbot = v
@@ -407,7 +411,7 @@ local function getBestTarget()
 end
 
 -- --------------------------------------------------------------------
--- ОБЩИЙ ЦИКЛ ОБНОВЛЕНИЯ (2D ESP + АИМБОТ)
+-- ОСНОВНОЙ ЦИКЛ ОБНОВЛЕНИЯ (БЕЗ УТЕЧЕК ПАМЯТИ)
 -- --------------------------------------------------------------------
 RunService.RenderStepped:Connect(function()
     -- 1. Аимбот
@@ -419,7 +423,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- 2. Box ESP с точной калибровкой по хитбоксу
+    -- 2. Box ESP
     if Settings.ESP then
         local myChar = LocalPlayer.Character
         local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChild("Torso"))
@@ -429,13 +433,12 @@ RunService.RenderStepped:Connect(function()
                 local boxData = getOrCreateScreenBox(player)
                 local char = player.Character
 
-                if char then
+                if char and char:IsDescendantOf(Workspace) then
                     local head = char:FindFirstChild("Head")
                     local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
                     local hum = char:FindFirstChildOfClass("Humanoid")
 
                     if head and root and (not hum or hum.Health > 0) then
-                        -- Точные физические границы: от макушки (+0.7) до подошв ног (-2.5)
                         local topWorld = head.Position + Vector3.new(0, 0.7, 0)
                         local bottomWorld = root.Position - Vector3.new(0, 2.5, 0)
 
@@ -448,7 +451,6 @@ RunService.RenderStepped:Connect(function()
                             local midX = (topScreen.X + bottomScreen.X) / 2
                             local topY = math.min(topScreen.Y, bottomScreen.Y)
 
-                            -- Верх бокса выравнивается СТРОГО по макушке головы (topY)
                             boxData.Frame.Size = UDim2.new(0, width, 0, height)
                             boxData.Frame.Position = UDim2.new(0, midX - (width / 2), 0, topY)
 
@@ -474,4 +476,4 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-print("[@wed_vk] Bloxstrike (Box ESP откалиброван) успешно запущен!")
+print("[@wed_vk] Bloxstrike (PC/Mobile Anti-Crash) готов к работе!")
